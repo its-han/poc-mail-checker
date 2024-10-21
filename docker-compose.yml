@@ -1,0 +1,95 @@
+﻿services:
+  demobroker:
+    image: apache/kafka:latest
+    container_name: demobroker
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://demobroker:9092  # Only include broker listener
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@demobroker:9093  # Use 'broker' instead of 'localhost'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3 
+      # Enable JMX monitoring
+#      KAFKA_JMX_PORT: 9999  # Port for JMX to expose metrics
+#      JMX_PORT: 9999        # This should match the KAFKA_JMX_PORT
+    ports:
+      - "9092:9092"
+#      - "9999:9999"  # Expose JMX port for JMX Exporter
+    networks:
+      - kafka-network
+
+  mybackgroundservice:
+    build:
+      context: ./MyBackgroundService
+      dockerfile: Dockerfile 
+    container_name: mybackgroundservice
+    depends_on:
+      - demobroker
+    networks:
+      - kafka-network
+      
+  mailconsumer:
+    build:
+      context: ./Consumer
+      dockerfile: Dockerfile
+    container_name: mailconsumer
+    depends_on:
+      - demobroker
+    networks:
+      - kafka-network
+      
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: kafdrop
+    ports:
+      - "9000:9000"  # Exposing the Kafdrop web UI on port 9000
+    environment:
+      KAFKA_BROKERCONNECT: demobroker:9092  # Connect to the Kafka broker
+      JVM_OPTS: "-Xms32M -Xmx64M"  # Java memory options
+      SERVER_SERVLET_CONTEXTPATH: "/"  # Root context path for Kafdrop
+    depends_on:
+      - demobroker
+    networks:
+      - kafka-network
+        
+#  jmxexporter:
+#    image: bitnami/jmx-exporter:latest
+#    container_name: jmxexporter
+#    ports:
+#      - "7003:7003"
+#    environment:
+#      - "JMX_URL=service:jmx:rmi:///jndi/rmi://demobroker:9999/jmxrmi"
+#    networks:
+#      - kafka-network
+
+
+
+#  prometheus:
+#    image: prom/prometheus:latest
+#    container_name: prometheus
+#    volumes:
+#      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+#    ports:
+#      - "9090:9090"
+#    networks:
+#      - kafka-network
+#
+#  grafana:
+#    image: grafana/grafana:latest
+#    container_name: grafana
+#    environment:
+#      - GF_SECURITY_ADMIN_PASSWORD=admin
+#    ports:
+#      - "3000:3000"
+#    networks:
+#      - kafka-network
+
+networks:
+  kafka-network:
+    driver: bridge

@@ -1,0 +1,32 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailconsumer
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: mailconsumer
+  template:
+    metadata:
+      labels:
+        app: mailconsumer
+    spec:
+      containers:
+        - name: mailconsumer
+          image: cngzhn/consumer:latest  # Replace this with your actual image name
+          ports:
+            - containerPort: 7002  # Port for Prometheus to scrape metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailconsumer
+spec:
+  selector:
+    app: mailconsumer
+  ports:
+    - protocol: TCP
+      port: 7002
+      targetPort: 7002
+  type: ClusterIP

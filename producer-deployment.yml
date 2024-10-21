@@ -1,0 +1,35 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mybackgroundservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mybackgroundservice
+  template:
+    metadata:
+      labels:
+        app: mybackgroundservice
+    spec:
+      containers:
+        - name: mybackgroundservice
+          image: cngzhn/producer:latest  # Replace with your actual producer image
+          ports:
+            - containerPort: 7001  # Ensure this is the correct port
+          env:
+            - name: KAFKA_BROKER_URL
+              value: "demobroker:9092"  # Producer connects to Kafka service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mybackgroundservice
+spec:
+  selector:
+    app: mybackgroundservice
+  ports:
+    - protocol: TCP
+      port: 7001
+      targetPort: 7001
+  type: ClusterIP
