@@ -54,23 +54,6 @@ namespace MyBackgroundService
 
         public Task StartedAsync(CancellationToken cancellationToken)
         {
-            
-            // string topic = TopicMailDownload;
-            //
-            // foreach (var provider in providers)
-            // {
-            //     string providerName = provider.Key; 
-            //     List<string> mailIds = provider.Value; 
-            //     
-            //     foreach (var mailId in mailIds)
-            //     {
-            //         var messageObject = new { Provider = providerName, MailId = mailId };
-            //         string message = JsonConvert.SerializeObject(messageObject);
-            //         await SendMessage(topic, message, providerName);
-            //         
-            //         MailProducedCounter.Inc();
-            //     }
-            // }
             return Task.CompletedTask;
         }
         
@@ -127,7 +110,7 @@ namespace MyBackgroundService
         private async Task PrepareProviders()
         {
             List<string> guidMicrosofts = new();
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 20; i++)
             {
                 Guid providerGuid = Guid.NewGuid();
                 guidMicrosofts.Add($"microsoft-{providerGuid}");
@@ -136,7 +119,7 @@ namespace MyBackgroundService
             providers.Add("microsoft", guidMicrosofts);
 
             List<string> guidGoogles = new();
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 20; i++)
             {
                 Guid providerGuid = Guid.NewGuid();
                 guidGoogles.Add($"google-{providerGuid.ToString()}");

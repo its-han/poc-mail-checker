@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: mailconsumer
 spec:
-  replicas: 10
+  replicas: 1
   selector:
     matchLabels:
       app: mailconsumer
