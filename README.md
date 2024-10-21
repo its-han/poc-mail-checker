@@ -1,1 +1,1 @@
-# pos-mail-checker
+# poc-mail-checker
