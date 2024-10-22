@@ -24,6 +24,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "kubernetes", "kubernetes", 
 		kafdrop-deployment.yml = kafdrop-deployment.yml
 		prometheus-deployment.yml = prometheus-deployment.yml
 		grafana-deployment.yml = grafana-deployment.yml
+		postgres-deployment.yml = postgres-deployment.yml
 	EndProjectSection
 EndProject
 Global

@@ -39,8 +39,8 @@ namespace MyBackgroundService
 
         private async void DoWork(object state)
         {
-            if (_mails.Count < 1600)
-            {
+            // if (_mails.Count < 1600)
+            // {
                 string topic = TopicMailDownload;
 
                 await PrepareProviders();
@@ -67,7 +67,7 @@ namespace MyBackgroundService
                 }
 
                 providers.Clear();
-            }
+            // }
         }
 
         public Task StartedAsync(CancellationToken cancellationToken)
