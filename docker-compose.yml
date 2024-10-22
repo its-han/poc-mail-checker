@@ -14,7 +14,7 @@
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_NUM_PARTITIONS: 3 
+      KAFKA_NUM_PARTITIONS: 10 
       # Enable JMX monitoring
 #      KAFKA_JMX_PORT: 9999  # Port for JMX to expose metrics
 #      JMX_PORT: 9999        # This should match the KAFKA_JMX_PORT
@@ -41,6 +41,7 @@
     container_name: mailconsumer
     depends_on:
       - demobroker
+      - mybackgroundservice
     networks:
       - kafka-network
       

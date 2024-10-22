@@ -1,24 +1,34 @@
 using Confluent.Kafka;
+using Newtonsoft.Json;
 using Prometheus;
 
 namespace Consumer;
 
+public class MessageObject
+{
+    public string Provider { get; set; }
+    public string MailId { get; set; }
+}
+
+
 public class Worker : IHostedLifecycleService
 {
+    // private readonly object _consumeLock = new object();
     private const string TopicMailDownload = "mail-download";
-    
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConsumerConfig _consumerConfig;
     private IConsumer<Ignore, string> _consumer;
     private CancellationTokenSource _cts;
     private static readonly Counter MailConsumedCounter = Metrics.CreateCounter("mail_consumer", "Total number of mails consumed.");
     private MetricServer _metricServer;
 
-    public Worker(ConsumerConfig consumerConfig)
+    public Worker(ConsumerConfig consumerConfig, IServiceScopeFactory scopeFactory)
     {
         _consumerConfig = consumerConfig;
+        _scopeFactory = scopeFactory;
     }
     
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         Console.WriteLine("Starting Kafka Consumer...");
         
@@ -30,22 +40,21 @@ public class Worker : IHostedLifecycleService
 
         _cts = new CancellationTokenSource();
         
-        // for (int i = 0; i < 1; i++)
-        // {
-        //     // Each thread gets its own consumer
-        //     Thread thread = new Thread(() => 
-        //     {
-        //         var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
-        //         consumer.Subscribe(TopicMailDownload);
-        //         StartConsuming(consumer, _cts.Token);
-        //     });
-        //     thread.Start();
-        // }
-        var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
-        consumer.Subscribe(TopicMailDownload);
-        StartConsuming(consumer, _cts.Token);
-
-        return Task.CompletedTask;
+        for (int i = 0; i < 4; i++)
+        {
+            // Each thread gets its own consumer
+            Thread thread = new Thread(async () => 
+            {
+                var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
+                consumer.Subscribe(TopicMailDownload);
+                await StartConsuming(consumer, _cts.Token);
+            });
+            thread.Start();
+        }
+        // var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
+        // consumer.Subscribe(TopicMailDownload);
+        // await StartConsuming(consumer, _cts.Token);
+        
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
@@ -121,7 +130,8 @@ public class Worker : IHostedLifecycleService
         return Task.CompletedTask;  
     }
     
-    private void StartConsuming(IConsumer<Ignore, string> consumer, CancellationToken cancellationToken)
+    private async Task StartConsuming
+        (IConsumer<Ignore, string> consumer, CancellationToken cancellationToken)
     {
         Console.WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId} is starting.");
         Random random = new Random();
@@ -137,10 +147,19 @@ public class Worker : IHostedLifecycleService
                     // Thread.Sleep(randomValue);
                     Thread.Sleep(1000);
 
-                    Console.WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId} is consuming a message... | Sleep time: {0}");
+                    Console.WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId} is consuming a message... | Sleep time: 1000ms");
                     
                     var consumeResult = consumer.Consume(cancellationToken);
                     MailConsumedCounter.Inc();
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var dbContext = scope.ServiceProvider.GetRequiredService<CheckerDbContext>();
+                        MessageObject deserializedMessage = JsonConvert.DeserializeObject<MessageObject>(consumeResult.Message.Value);
+
+                        dbContext.Consumer.Add(new ConsumerEntity(deserializedMessage.MailId));    
+                        dbContext.SaveChanges();
+                    }
+                    consumer.Commit(consumeResult);
                     Console.WriteLine($"Consumed message '{consumeResult.Message.Value}' from topic '{consumeResult.Topic}'.");
                 }
                 catch (ConsumeException ex)
@@ -155,7 +174,7 @@ public class Worker : IHostedLifecycleService
         }
         finally
         {
-            // Ensure the consumer leaves the group cleanly and final offsets are committed
+            // Ensure the consumer leaves the group cleanly and final offsets are committedjira
             consumer.Close();
         }
     }

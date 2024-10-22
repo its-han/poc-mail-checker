@@ -1,4 +1,5 @@
 using Confluent.Kafka;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Prometheus;
 
@@ -6,6 +7,7 @@ namespace MyBackgroundService
 {
     public class Worker : IHostedLifecycleService
     {
+        private readonly IServiceScopeFactory _scopeFactory;
         private const string TopicMailDownload = "mail-download";
         private readonly ILogger<Worker> _logger;
         private readonly IProducer<Null, string> _producer;
@@ -13,11 +15,14 @@ namespace MyBackgroundService
         private MetricServer _metricServer;
         private Dictionary<string, List<string>> providers = new();
         private Timer _timer;
+        private static List<string> _mails = new();
         
-        public Worker(ILogger<Worker> logger, IProducer<Null, string> producer)
+        public Worker(ILogger<Worker> logger, IProducer<Null, string> producer, IServiceScopeFactory scopeFactory)
         {
             _logger = logger;
             _producer = producer;
+            // _dbContext = dbContext;
+            _scopeFactory = scopeFactory;
         }
         
         public Task StartAsync(CancellationToken cancellationToken)
@@ -31,24 +36,37 @@ namespace MyBackgroundService
             
             return Task.CompletedTask;
         }
-        
+
         private async void DoWork(object state)
         {
-            string topic = TopicMailDownload;
-
-            foreach (var provider in providers)
+            if (_mails.Count < 1600)
             {
-                string providerName = provider.Key; 
-                List<string> mailIds = provider.Value; 
-                
-                foreach (var mailId in mailIds)
+                string topic = TopicMailDownload;
+
+                await PrepareProviders();
+
+                foreach (var provider in providers)
                 {
-                    var messageObject = new { Provider = providerName, MailId = mailId };
-                    string message = JsonConvert.SerializeObject(messageObject);
-                    await SendMessage(topic, message, providerName);
-                    
-                    MailProducedCounter.Inc();
+                    string providerName = provider.Key;
+                    List<string> mailIds = provider.Value;
+
+                    foreach (var mailId in mailIds)
+                    {
+                        var messageObject = new { Provider = providerName, MailId = mailId };
+                        string message = JsonConvert.SerializeObject(messageObject);
+                        await SendMessage(topic, message, providerName);
+                        using (var scope = _scopeFactory.CreateScope())
+                        {
+                            var dbContext = scope.ServiceProvider.GetRequiredService<CheckerDbContext>();
+                            await dbContext.Producer.AddAsync(new ProducerEntity(mailId));
+                            await dbContext.SaveChangesAsync();
+                        }
+
+                        MailProducedCounter.Inc();
+                    }
                 }
+
+                providers.Clear();
             }
         }
 
@@ -62,20 +80,18 @@ namespace MyBackgroundService
             _timer?.Dispose();
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
             _producer.Flush(TimeSpan.FromSeconds(10));
             _producer.Dispose();
             
             _metricServer.Stop();
-
-            return Task.CompletedTask;
         }
 
         public async Task StartingAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Preparing provider data");
-            await PrepareProviders();
+            
             _logger.LogInformation("Provider data is prepared");
         }
 
@@ -117,6 +133,7 @@ namespace MyBackgroundService
             }
 
             providers.Add("microsoft", guidMicrosofts);
+            _mails.AddRange(guidMicrosofts);
 
             List<string> guidGoogles = new();
             for (int i = 0; i < 20; i++)
@@ -126,6 +143,7 @@ namespace MyBackgroundService
             }
 
             providers.Add("google", guidGoogles);
+            _mails.AddRange(guidMicrosofts);
         }
     }
 }
